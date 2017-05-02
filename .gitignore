@@ -413,3 +413,4 @@
 
 # /utils/wxrc/
 /utils/wxrc/*.sln
+bld_local

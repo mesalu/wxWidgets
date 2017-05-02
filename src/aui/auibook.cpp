@@ -13,6 +13,7 @@
 // ----------------------------------------------------------------------------
 
 #include "wx/wxprec.h"
+#include "wx/debug.h"
 
 #ifdef __BORLANDC__
     #pragma hdrstop
@@ -463,43 +464,92 @@ void wxAuiTabContainer::Render(wxDC* raw_dc, wxWindow* wnd)
                               wxAUI_BUTTON_STATE_HIDDEN,
                             &x_extent);
 
-        if (i+1 < page_count)
-            total_width += x_extent;
-        else
-            total_width += size.x;
-
-        if (i >= m_tabOffset)
+        if (m_flags & (wxAUI_NB_TOP | wxAUI_NB_BOTTOM))
         {
+            // sum the width
             if (i+1 < page_count)
-                visible_width += x_extent;
+                total_width += x_extent;
             else
-                visible_width += size.x;
-        }
-    }
+                total_width += size.x;
 
-    if (total_width > m_rect.GetWidth() || m_tabOffset != 0)
-    {
-        // show left/right buttons
-        for (i = 0; i < button_count; ++i)
-        {
-            wxAuiTabContainerButton& button = m_buttons.Item(i);
-            if (button.id == wxAUI_BUTTON_LEFT ||
-                button.id == wxAUI_BUTTON_RIGHT)
+            if (i >= m_tabOffset)
             {
-                button.curState &= ~wxAUI_BUTTON_STATE_HIDDEN;
+                if (i+1 < page_count)
+                    visible_width += x_extent;
+                else
+                    visible_width += size.x;
             }
         }
-    }
-    else
-    {
-        // hide left/right buttons
-        for (i = 0; i < button_count; ++i)
+        else if (m_flags & (wxAUI_NB_RIGHT | wxAUI_NB_LEFT))
         {
-            wxAuiTabContainerButton& button = m_buttons.Item(i);
-            if (button.id == wxAUI_BUTTON_LEFT ||
-                button.id == wxAUI_BUTTON_RIGHT)
+            // its ugly, ambiguous and fuddled, but piggy back off total_width.
+            
+            // x_extent could be different than size.x IF a different art provider is 
+            // selected, but regardless of artprovider size.y will be no different.    
+            total_width += size.y;
+            
+            if (i >= m_tabOffset)
+                visible_width += size.y;    
+        }
+    }
+
+    if (m_flags & (wxAUI_NB_TOP | wxAUI_NB_BOTTOM))
+    {
+        if (total_width > m_rect.GetWidth() || m_tabOffset != 0)
+        {
+            // show left/right buttons
+            for (i = 0; i < button_count; ++i)
             {
-                button.curState |= wxAUI_BUTTON_STATE_HIDDEN;
+                wxAuiTabContainerButton& button = m_buttons.Item(i);
+                if (button.id == wxAUI_BUTTON_LEFT ||
+                    button.id == wxAUI_BUTTON_RIGHT)
+                {
+                    button.curState &= ~wxAUI_BUTTON_STATE_HIDDEN;
+                }
+            }
+        }
+        else
+        {
+            // hide left/right buttons
+            for (i = 0; i < button_count; ++i)
+            {
+                wxAuiTabContainerButton& button = m_buttons.Item(i);
+                if (button.id == wxAUI_BUTTON_LEFT ||
+                    button.id == wxAUI_BUTTON_RIGHT)
+                {
+                    button.curState |= wxAUI_BUTTON_STATE_HIDDEN;
+                }
+            }
+        }   
+    }
+    // Now the s ame, except for vertical stacking.
+    else if (m_flags & (wxAUI_NB_LEFT | wxAUI_NB_RIGHT))
+    {
+        if (total_width > m_rect.GetHeight() || m_tabOffset)
+        {
+            // show buttons at the bottom for scrolling, as wxAUI_BUTTON_(UP/DOWN)
+            // aren't implemented yet, piggy back off of left and right.
+            for (i = 0; i < button_count; ++i)
+            {
+                wxAuiTabContainerButton& button = m_buttons.Item(i);
+                if (button.id == wxAUI_BUTTON_LEFT || 
+                    button.id == wxAUI_BUTTON_RIGHT)
+                {
+                    button.curState &= ~wxAUI_BUTTON_STATE_HIDDEN;
+                }
+            }
+        }
+        else
+        {
+            // hide left/right buttons
+            for (i = 0; i < button_count; ++i)
+            {
+                wxAuiTabContainerButton& button = m_buttons.Item(i);
+                if (button.id == wxAUI_BUTTON_LEFT ||
+                    button.id == wxAUI_BUTTON_RIGHT)
+                {
+                    button.curState |= wxAUI_BUTTON_STATE_HIDDEN;
+                }
             }
         }
     }
@@ -517,14 +567,18 @@ void wxAuiTabContainer::Render(wxDC* raw_dc, wxWindow* wnd)
         }
         if (button.id == wxAUI_BUTTON_RIGHT)
         {
-            if (visible_width < m_rect.GetWidth() - ((int)button_count*16))
+            int extent;
+            if (m_flags & (wxAUI_NB_RIGHT | wxAUI_NB_LEFT))
+                extent = m_rect.GetHeight();
+            else
+                extent = m_rect.GetWidth();
+
+            if (visible_width < extent - ((int)button_count*16))
                 button.curState |= wxAUI_BUTTON_STATE_DISABLED;
             else
                 button.curState &= ~wxAUI_BUTTON_STATE_DISABLED;
         }
     }
-
-
 
     // draw background
     m_art->DrawBackground(dc, wnd, m_rect);
@@ -532,40 +586,69 @@ void wxAuiTabContainer::Render(wxDC* raw_dc, wxWindow* wnd)
     // draw buttons
     int left_buttons_width = 0;
     int right_buttons_width = 0;
-
-    // draw the buttons on the right side
-    int offset = m_rect.x + m_rect.width;
-    for (i = 0; i < button_count; ++i)
+    int offset;
+    // draw the buttons on the right side if top/bottom
+    if (m_flags & (wxAUI_NB_TOP | wxAUI_NB_BOTTOM))
     {
-        wxAuiTabContainerButton& button = m_buttons.Item(button_count - i - 1);
+        offset = m_rect.x + m_rect.width;
+        for (i = 0; i < button_count; ++i)
+        {
+            wxAuiTabContainerButton& button = m_buttons.Item(button_count - i - 1);
 
-        if (button.location != wxRIGHT)
-            continue;
-        if (button.curState & wxAUI_BUTTON_STATE_HIDDEN)
-            continue;
+            if (button.location != wxRIGHT)
+                continue;
+            if (button.curState & wxAUI_BUTTON_STATE_HIDDEN)
+                continue;
 
-        wxRect button_rect = m_rect;
-        button_rect.SetY(1);
-        button_rect.SetWidth(offset);
+            wxRect button_rect = m_rect;
+            button_rect.SetY(1);
+            button_rect.SetWidth(offset);
 
-        m_art->DrawButton(dc,
-                          wnd,
-                          button_rect,
-                          button.id,
-                          button.curState,
-                          wxRIGHT,
-                          &button.rect);
+            m_art->DrawButton(dc,
+                              wnd,
+                              button_rect,
+                              button.id,
+                              button.curState,
+                              wxRIGHT,
+                              &button.rect);
 
-        offset -= button.rect.GetWidth();
-        right_buttons_width += button.rect.GetWidth();
+            offset -= button.rect.GetWidth();
+            right_buttons_width += button.rect.GetWidth();
+        }    
     }
 
+    else if (m_flags & (wxAUI_NB_RIGHT | wxAUI_NB_LEFT))
+    {
+        offset = m_rect.y + m_rect.height;
+        for (i = 0; i < button_count; ++i)
+        {
+            wxAuiTabContainerButton& button = m_buttons.Item(button_count -i - 1);
+            if (button.location != wxRIGHT)
+                continue;
+            if (button.curState & wxAUI_BUTTON_STATE_HIDDEN)
+                continue;
 
+            wxRect button_rect = m_rect;
+            button_rect.SetX(1);
+            button_rect.SetHeight(offset);
+
+            m_art->DrawButton(dc,
+                              wnd,
+                              button_rect,
+                              button.id,
+                              button.curState,
+                              wxRIGHT,
+                              &button.rect);
+            offset -= button.rect.GetHeight();
+            right_buttons_width += button.rect.GetHeight();
+        }
+    }
 
     offset = 0;
 
-    // draw the buttons on the left side
+    // TODO, resume work here. Still need to find code that fills tabs vertically.
 
+    // draw the buttons on the left side
     for (i = 0; i < button_count; ++i)
     {
         wxAuiTabContainerButton& button = m_buttons.Item(button_count - i - 1);
@@ -1548,14 +1631,32 @@ public:
             m_tabs->SetSize     (m_rect.x, m_rect.y + m_rect.height - m_tabCtrlHeight, m_rect.width, m_tabCtrlHeight);
             m_tabs->SetRect     (wxRect(0, 0, m_rect.width, m_tabCtrlHeight));
         }
-        else //TODO: if (GetFlags() & wxAUI_NB_TOP)
+        
+        // TODO: else if (GetFlags() & wxAUI_NB_LEFT){}
+        else if (m_tabs->GetFlags() & wxAUI_NB_LEFT)
         {
-            m_tab_rect = wxRect (m_rect.x, m_rect.y, m_rect.width, m_tabCtrlHeight);
+            // currently no 'm_tabCtrlWidth', as only height is tracked.
+            // use height to POC, then add methods for tracking and manipulating m_tabCtrlWidth
+            if (m_tabs->GetFlags() & wxAUI_NB_TAB_FIXED_WIDTH)
+            {
+                // cannot work with non-fixed width right now, so just use 80 px
+                m_tab_rect = wxRect(m_rect.x, m_rect.y, 80, m_rect.height);
+                m_tabs->SetSize    (m_rect.x, m_rect.y, 80, m_rect.height);
+                m_tabs->SetRect    (wxRect(0, 0, 80, m_rect.height));
+            }
+        }
+
+        // TODO: else if (GetFlags() & wxAUI_NB_RIGHT){}
+        else if (m_tabs->GetFlags() & wxAUI_NB_RIGHT)
+        {
+
+        }
+
+        else // treat wxAUI_NB_TOP as the default
+        {
             m_tabs->SetSize     (m_rect.x, m_rect.y, m_rect.width, m_tabCtrlHeight);
             m_tabs->SetRect     (wxRect(0, 0,        m_rect.width, m_tabCtrlHeight));
         }
-        // TODO: else if (GetFlags() & wxAUI_NB_LEFT){}
-        // TODO: else if (GetFlags() & wxAUI_NB_RIGHT){}
 
         m_tabs->Refresh();
         m_tabs->Update();
@@ -1586,7 +1687,15 @@ public:
                                      width,
                                      height);
             }
-            else //TODO: if (GetFlags() & wxAUI_NB_TOP)
+            else if (m_tabs->GetFlags() & wxAUI_NB_LEFT)
+            {
+                page.window->SetSize(m_rect.x + 80 + border_space,
+                                     m_rect.y,
+                                     width,
+                                     height);
+            }
+
+            else // wxAUI_NB_TOP
             {
                 page.window->SetSize(m_rect.x + border_space,
                                      m_rect.y + m_tabCtrlHeight,

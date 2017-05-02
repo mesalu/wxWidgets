@@ -400,6 +400,17 @@ void wxAuiGenericTabArt::DrawTab(wxDC& dc,
         border_points[4] = wxPoint(tab_x+tab_width,   tab_y+tab_height-6);
         border_points[5] = wxPoint(tab_x+tab_width,   tab_y);
     }
+
+    else if (m_flags & wxAUI_NB_LEFT)
+    {
+        border_points[0] = wxPoint(tab_x,             tab_y);
+        border_points[1] = wxPoint(tab_x,             tab_y+tab_height);
+        border_points[3] = wxPoint(tab_x+tab_width-2, tab_y+tab_height-2);
+        border_points[2] = wxPoint(tab_x+tab_width-4, tab_y+tab_height);
+        border_points[4] = wxPoint(tab_x+tab_width-2, tab_y+2);
+        border_points[5] = wxPoint(tab_x+tab_width-4, tab_y);
+    }
+
     else //if (m_flags & wxAUI_NB_TOP) {}
     {
         border_points[0] = wxPoint(tab_x,             tab_y+tab_height-4);
@@ -409,7 +420,7 @@ void wxAuiGenericTabArt::DrawTab(wxDC& dc,
         border_points[4] = wxPoint(tab_x+tab_width,   tab_y+2);
         border_points[5] = wxPoint(tab_x+tab_width,   tab_y+tab_height-4);
     }
-    // TODO: else if (m_flags &wxAUI_NB_LEFT) {}
+    
     // TODO: else if (m_flags &wxAUI_NB_RIGHT) {}
 
     int drawn_tab_yoff = border_points[1].y;
@@ -627,6 +638,7 @@ wxSize wxAuiGenericTabArt::GetTabSize(wxDC& dc,
     dc.SetFont(m_measuringFont);
     dc.GetTextExtent(caption, &measured_textx, &measured_texty);
 
+    // get a y_extent that will be suitable on almost all fonts
     dc.GetTextExtent(wxT("ABCDEFXj"), &tmp, &measured_texty);
 
     // add padding around the text
